@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -57,13 +58,13 @@
     <script type="text/babel">
         const { useState, useEffect } = React;
 
-        const STORAGE_KEY = "schema_journal_v16_final";
-        const SETTINGS_KEY = "schema_journal_settings_v16";
+        const STORAGE_KEY = "schema_journal_v17_final";
+        const SETTINGS_KEY = "schema_journal_settings_v17";
         
-        // These are the "Golden Defaults" for Google AI Studio keys
+        // Updated to the gemini-2.5-flash as suggested
         const DEFAULTS = {
             apiKey: "AIzaSyDmjb0u_rfr08MyuHc3f4ByEluR-R7_TKc",
-            modelId: "gemini-1.5-flash",
+            modelId: "gemini-2.5-flash",
             apiVersion: "v1beta"
         };
 
@@ -74,6 +75,7 @@
             Trash: () => <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>,
             Settings: () => <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>,
             Sparkles: () => <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3l1.912 5.813a2 2 0 0 0 1.275 1.275L21 12l-5.813 1.912a2 2 0 0 0-1.275 1.275L12 21l-1.912-5.813a2 2 0 0 0-1.275-1.275L3 12l5.813-1.912a2 2 0 0 0 1.275-1.275L12 3z"></path></svg>,
+            Heart: () => <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>,
             Alert: () => <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
         };
 
@@ -126,10 +128,22 @@
                 setLoading(true);
                 setError(null);
 
-                const systemPrompt = `Analyze the entry using Schema Therapy. Identify EMS, Mode, Coping Style, Healthy Adult Reframe, and Nurtured Child Message. Return ONLY JSON.`;
+                const systemPrompt = `Analyze the entry using Schema Therapy. Identify Early Maladaptive Schemas (EMS), current Mode (e.g. Vulnerable Child), and Coping Style. 
+                Provide a Healthy Adult reframing that challenges distortions with compassion.
+                Provide a Healthy Adult perspective on practical steps.
+                Provide a Nurtured Child message: Comforting validation from the Healthy Adult to the inner child.
+                Return ONLY valid JSON:
+                {
+                    "schemas": ["Name"],
+                    "mode": "Mode Name",
+                    "coping": "Style Name",
+                    "rationalReframing": "Compassionate logical challenge",
+                    "healthyAdultPerspective": "Instruction for adult behavior",
+                    "nurturedChildPerspective": "Comforting message for the child"
+                }`;
+
                 const userQuery = `TRIGGER: ${trigger}\nTHOUGHTS: ${thoughts}\nEMOTIONS: ${emotions}`;
 
-                // This function tries to call the API
                 const tryFetch = async (v, m) => {
                     const url = `https://generativelanguage.googleapis.com/${v}/models/${m}:generateContent?key=${apiKey}`;
                     const res = await fetch(url, {
@@ -151,12 +165,11 @@
                 try {
                     let result;
                     try {
-                        // Attempt 1: Current settings
                         result = await tryFetch(apiVersion, modelId);
                     } catch (e) {
-                        // Attempt 2: Auto-correct model name (some regions require this)
-                        result = await tryFetch(apiVersion, "gemini-1.5-flash-latest");
-                        setModelId("gemini-1.5-flash-latest"); // Save the fix
+                        // Fallback attempt with standard ID if the suggested one fails
+                        result = await tryFetch(apiVersion, "gemini-1.5-flash");
+                        setModelId("gemini-1.5-flash");
                     }
                     
                     const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
@@ -167,7 +180,7 @@
                     setEntries(updated);
                     localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
                 } catch (err) {
-                    setError(`Error: ${err.message}. If it says 'not found', click the gear icon and change Model ID to 'gemini-pro' or 'gemini-1.5-flash-latest'.`);
+                    setError(`Error: ${err.message}. If it still says 'not found', use settings to try model ID: gemini-1.5-flash-latest`);
                 } finally {
                     setLoading(false);
                 }
@@ -182,7 +195,7 @@
                             </div>
                             <div>
                                 <h1 className="text-2xl font-bold text-slate-800">Schema Journal</h1>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Universal Connection Edition</p>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none mt-1">Healing Pattern Evaluator</p>
                             </div>
                         </div>
                         <button onClick={() => setShowSettings(!showSettings)} className="text-slate-400 hover:text-indigo-600 transition-colors">
@@ -192,10 +205,10 @@
 
                     {showSettings && (
                         <div className="mb-8 bg-slate-100 p-6 rounded-[2rem] border border-slate-200 animate-fade-in space-y-4">
-                            <h3 className="font-bold text-slate-700 text-xs uppercase tracking-widest">System Overrides</h3>
+                            <h3 className="font-bold text-slate-700 text-xs uppercase tracking-widest">Connection Settings</h3>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="text-[10px] font-black text-slate-400 block mb-1 uppercase">Version</label>
+                                    <label className="text-[10px] font-black text-slate-400 block mb-1 uppercase">API Version</label>
                                     <input value={apiVersion} onChange={e => saveSettings('apiVersion', e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl p-2 text-xs outline-none" />
                                 </div>
                                 <div>
@@ -203,47 +216,60 @@
                                     <input value={modelId} onChange={e => saveSettings('modelId', e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl p-2 text-xs outline-none" />
                                 </div>
                             </div>
-                            <p className="text-[9px] text-slate-500 italic">If you see 'Model Not Found', try changing Model ID to: <b>gemini-1.5-flash-latest</b></p>
-                            <button onClick={() => setShowSettings(false)} className="w-full bg-slate-800 text-white font-bold py-2 rounded-xl text-[10px] uppercase">Close & Save</button>
+                            <div>
+                                <label className="text-[10px] font-black text-slate-400 block mb-1 uppercase tracking-tighter">Your API Key</label>
+                                <input type="password" value={apiKey} onChange={e => saveSettings('apiKey', e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl p-2 text-xs outline-none" />
+                            </div>
+                            <button onClick={() => setShowSettings(false)} className="w-full bg-slate-800 text-white font-bold py-2 rounded-xl text-[10px] uppercase">Close Settings</button>
                         </div>
                     )}
 
                     <nav className="flex gap-2 bg-slate-200/50 p-1.5 rounded-2xl mb-10">
-                        <button onClick={() => setActiveTab('new')} className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-bold transition-all ${activeTab === 'new' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500'}`}><Icons.Plus /> Journal</button>
-                        <button onClick={() => setActiveTab('history')} className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-bold transition-all ${activeTab === 'history' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500'}`}><Icons.History /> Archive</button>
+                        <button onClick={() => setActiveTab('new')} className={`flex-1 flex items-center justify-center gap-2 py-3.5 rounded-xl font-bold transition-all ${activeTab === 'new' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500'}`}><Icons.Plus /> New Diary</button>
+                        <button onClick={() => setActiveTab('history')} className={`flex-1 flex items-center justify-center gap-2 py-3.5 rounded-xl font-bold transition-all ${activeTab === 'history' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500'}`}><Icons.History /> Archive</button>
                     </nav>
 
                     {activeTab === 'new' ? (
                         <div className="space-y-6 animate-fade-in">
                             <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-200">
                                 <div className="space-y-6">
-                                    <textarea value={trigger} onChange={e => setTrigger(e.target.value)} className="w-full bg-slate-50 border-0 rounded-3xl p-5 h-28 outline-none focus:ring-4 focus:ring-indigo-100 transition-all placeholder:text-slate-300" placeholder="The Situation..." />
-                                    <textarea value={thoughts} onChange={e => setThoughts(e.target.value)} className="w-full bg-slate-50 border-0 rounded-3xl p-5 h-32 outline-none focus:ring-4 focus:ring-indigo-100 transition-all placeholder:text-slate-300" placeholder="Automatic Thoughts..." />
+                                    <textarea value={trigger} onChange={e => setTrigger(e.target.value)} className="w-full bg-slate-50 border-0 rounded-3xl p-5 h-28 outline-none focus:ring-4 focus:ring-indigo-100 transition-all placeholder:text-slate-300" placeholder="The Situation (Who, what, where?)" />
+                                    <textarea value={thoughts} onChange={e => setThoughts(e.target.value)} className="w-full bg-slate-50 border-0 rounded-3xl p-5 h-32 outline-none focus:ring-4 focus:ring-indigo-100 transition-all placeholder:text-slate-300" placeholder="Automatic Thoughts & Feelings..." />
                                     <button onClick={runAnalysis} disabled={loading} className="w-full bg-indigo-600 text-white font-bold py-5 rounded-3xl shadow-xl shadow-indigo-100 flex justify-center items-center gap-3">
                                         {loading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> : <Icons.Sparkles />}
-                                        {loading ? "Analyzing Pattern..." : "Evaluate Now"}
+                                        {loading ? "Identifying Patterns..." : "Evaluate Pattern"}
                                     </button>
                                     {error && <div className="mt-4 p-4 bg-rose-50 text-rose-600 rounded-2xl text-[10px] font-bold flex gap-2"><Icons.Alert /> {error}</div>}
                                 </div>
                             </div>
 
                             {analysis && (
-                                <div className="bg-slate-900 text-white rounded-[2.5rem] p-8 shadow-2xl animate-fade-in space-y-8">
+                                <div className="bg-slate-900 text-white rounded-[2.5rem] p-10 shadow-2xl animate-fade-in space-y-10">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
-                                            <label className="text-[10px] font-black text-indigo-400 block uppercase mb-1">Schemas</label>
-                                            <div className="flex flex-wrap gap-2">{analysis.schemas.map(s => <span key={s} className="bg-indigo-500/20 text-indigo-200 px-2 py-1 rounded-lg text-[9px] font-bold border border-indigo-500/30 uppercase">{s}</span>)}</div>
+                                            <label className="text-[10px] font-black text-indigo-400 block uppercase mb-1">Activated Schemas</label>
+                                            <div className="flex flex-wrap gap-2">{analysis.schemas.map(s => <span key={s} className="bg-indigo-500/20 text-indigo-200 px-3 py-1 rounded-lg text-[9px] font-bold border border-indigo-500/30 uppercase">{s}</span>)}</div>
                                         </div>
                                         <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
-                                            <label className="text-[10px] font-black text-amber-400 block uppercase mb-1">Active Mode</label>
-                                            <p className="font-bold text-sm">{analysis.mode}</p>
+                                            <label className="text-[10px] font-black text-amber-400 block uppercase mb-1">Active Mode & Style</label>
+                                            <p className="font-bold text-sm text-white">{analysis.mode}</p>
+                                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{analysis.coping}</p>
                                         </div>
                                     </div>
-                                    <div className="space-y-6">
-                                        <p className="italic text-lg text-slate-200 leading-relaxed font-light">"{analysis.rationalReframing}"</p>
-                                        <div className="bg-white text-slate-900 rounded-2xl p-5">
-                                            <h3 className="text-indigo-600 text-[10px] font-black uppercase mb-1">Healthy Adult View</h3>
-                                            <p className="font-medium text-sm">{analysis.healthyAdultPerspective}</p>
+                                    <div className="space-y-8">
+                                        <div className="border-l-4 border-indigo-500/30 pl-6">
+                                            <h3 className="text-indigo-300 text-[10px] font-black uppercase mb-3 tracking-widest">Rational Challenge</h3>
+                                            <p className="italic text-xl text-slate-200 font-light leading-relaxed">"{analysis.rationalReframing}"</p>
+                                        </div>
+                                        <div className="bg-white text-slate-900 rounded-[2rem] p-8 shadow-inner border border-white/10">
+                                            <h3 className="text-indigo-600 text-[10px] font-black uppercase mb-3 font-bold tracking-widest">Healthy Adult Wise Mind</h3>
+                                            <p className="font-semibold leading-relaxed text-lg">{analysis.healthyAdultPerspective}</p>
+                                        </div>
+                                        <div className="bg-indigo-500/10 p-8 rounded-[2rem] border border-indigo-500/20">
+                                            <h3 className="text-indigo-300 text-[10px] font-black uppercase mb-3 flex items-center gap-2 tracking-widest">
+                                                <Icons.Heart /> Message to Inner Child
+                                            </h3>
+                                            <p className="text-md italic text-indigo-100 leading-relaxed font-medium">"{analysis.nurturedChildPerspective}"</p>
                                         </div>
                                     </div>
                                 </div>
@@ -251,20 +277,21 @@
                         </div>
                     ) : (
                         <div className="space-y-4 animate-fade-in">
-                            {entries.length === 0 ? <div className="py-20 text-center opacity-20"><Icons.History /></div> :
+                            {entries.length === 0 ? <div className="py-20 text-center opacity-20 flex justify-center"><Icons.History /></div> :
                                 entries.map(entry => (
-                                    <div key={entry.id} className="bg-white rounded-[2rem] p-6 border border-slate-200 flex justify-between items-start">
+                                    <div key={entry.id} className="bg-white rounded-[2rem] p-8 border border-slate-200 flex justify-between items-start transition-all hover:shadow-md">
                                         <div className="flex-1">
-                                            <p className="text-[10px] font-bold text-indigo-400 uppercase mb-1">{new Date(entry.date).toLocaleDateString()}</p>
-                                            <h3 className="font-bold text-slate-800 line-clamp-1">{entry.trigger}</h3>
+                                            <p className="text-[10px] font-bold text-indigo-400 uppercase mb-1 tracking-widest leading-none">{new Date(entry.date).toLocaleDateString(undefined, {dateStyle: 'full'})}</p>
+                                            <h3 className="font-bold text-slate-800 line-clamp-1 text-lg mb-2">{entry.trigger}</h3>
+                                            <p className="text-xs text-slate-500 italic line-clamp-2 leading-relaxed">"{entry.analysis.rationalReframing}"</p>
                                         </div>
                                         <button onClick={() => {
-                                            if (confirm("Delete?")) {
+                                            if (confirm("Permanently delete this entry?")) {
                                                 const updated = entries.filter(e => e.id !== entry.id);
                                                 setEntries(updated);
                                                 localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
                                             }
-                                        }} className="text-slate-300 hover:text-rose-500"><Icons.Trash /></button>
+                                        }} className="text-slate-300 hover:text-rose-500 transition-colors p-2"><Icons.Trash /></button>
                                     </div>
                                 ))
                             }
@@ -279,3 +306,5 @@
     </script>
 </body>
 </html>
+
+```
