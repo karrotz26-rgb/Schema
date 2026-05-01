@@ -18,22 +18,55 @@
         body { 
             font-family: 'Plus Jakarta Sans', sans-serif;
             background-color: #f8fafc;
+            margin: 0;
+            padding: 0;
         }
         .animate-in { animation: fadeIn 0.4s ease-out forwards; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         
-        /* Custom scrollbar for better aesthetics */
+        /* Custom scrollbar */
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
         ::-webkit-scrollbar-thumb:hover { background: #cbd5e1; }
+
+        /* Initial Loading State */
+        #app-loading {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background-color: #f8fafc;
+            z-index: 9999;
+            transition: opacity 0.5s ease;
+        }
+        .loader {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #4f46e5;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
 <body class="text-slate-900 selection:bg-indigo-100">
+    <!-- This div shows while the browser is processing the script -->
+    <div id="app-loading">
+        <div class="loader"></div>
+        <p style="margin-top: 15px; color: #64748b; font-size: 14px; font-weight: 500;">Initializing Journal...</p>
+    </div>
+
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect } = React;
+        const { useState, useEffect, useRef } = React;
 
         const SCHEMAS = [
             "Abandonment", "Mistrust/Abuse", "Emotional Deprivation", "Defectiveness", "Social Isolation",
@@ -45,18 +78,22 @@
         const STORAGE_KEY = "schema_journal_v10_final";
         const USER_API_KEY = "AIzaSyDmjb0u_rfr08MyuHc3f4ByEluR-R7_TKc";
 
-        // Icon Component wrapper for Lucide
+        // Robust Icon Component
         const Icon = ({ name, size = 20, className = "" }) => {
-            const [svg, setSvg] = React.useState("");
-            React.useEffect(() => {
-                if (window.lucide) {
-                    const icon = window.lucide.icons[name];
-                    if (icon) {
+            const [svg, setSvg] = useState("");
+            useEffect(() => {
+                const timer = setInterval(() => {
+                    if (window.lucide && window.lucide.icons[name]) {
+                        const icon = window.lucide.icons[name];
                         setSvg(icon.toSvg({ size, class: className }));
+                        clearInterval(timer);
                     }
-                }
+                }, 100);
+                return () => clearInterval(timer);
             }, [name, size, className]);
-            return <span dangerouslySetInnerHTML={{ __html: svg }} />;
+
+            if (!svg) return <div style={{ width: size, height: size }} className={className}></div>;
+            return <span dangerouslySetInnerHTML={{ __html: svg }} className="inline-flex items-center justify-center" />;
         };
 
         const App = () => {
@@ -71,6 +108,13 @@
             const [analysis, setAnalysis] = useState(null);
 
             useEffect(() => {
+                // Remove loading screen when React mounts
+                const loader = document.getElementById('app-loading');
+                if (loader) {
+                    loader.style.opacity = '0';
+                    setTimeout(() => loader.remove(), 500);
+                }
+
                 const saved = localStorage.getItem(STORAGE_KEY);
                 if (saved) {
                     try {
@@ -93,7 +137,7 @@
             };
 
             const deleteEntry = (id) => {
-                if (confirm("Delete this entry?")) {
+                if (confirm("Delete this entry from your history?")) {
                     const updated = entries.filter(e => e.id !== id);
                     setEntries(updated);
                     localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
@@ -102,16 +146,16 @@
 
             const runAnalysis = async () => {
                 if (!trigger || !thoughts) {
-                    setError("Please fill out the trigger and your thoughts to begin.");
+                    setError("Please describe the trigger and your automatic thoughts first.");
                     return;
                 }
 
                 setLoading(true);
                 setError(null);
 
-                const systemPrompt = `You are a world-class Schema Therapist. 
+                const systemPrompt = `You are a world-class Schema Therapist expert. 
                 Analyze the journal entry based on Jeffrey Young's Schema Therapy.
-                Identify: EMS, Schema Mode, Coping Style, Healthy Adult Reframing, and Nurtured Child Message.
+                Identify: EMS (Schemas), Schema Mode, Coping Style, Healthy Adult Reframing, and Nurtured Child Message.
                 Return ONLY a valid JSON object:
                 {
                     "schemas": ["Name"],
@@ -131,20 +175,28 @@
                         body: JSON.stringify({
                             contents: [{ parts: [{ text: userQuery }] }],
                             systemInstruction: { parts: [{ text: systemPrompt }] },
-                            generationConfig: { responseMimeType: "application/json" }
+                            generationConfig: { 
+                                responseMimeType: "application/json",
+                                temperature: 0.7
+                            }
                         })
                     });
 
-                    if (!response.ok) throw new Error("Connection Error. Ensure you have an active internet connection.");
+                    if (!response.ok) {
+                        const errBody = await response.json().catch(() => ({}));
+                        throw new Error(errBody.error?.message || "Connection Error");
+                    }
                     
                     const result = await response.json();
                     const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                    if (!text) throw new Error("AI returned an empty response.");
+                    
                     const parsed = JSON.parse(text);
                     setAnalysis(parsed);
                     saveEntry({ trigger, emotions, thoughts, analysis: parsed });
                 } catch (err) {
-                    setError("Evaluation failed. Browser security often blocks AI requests from local files. Try running this file through a local server or the Preview tab.");
                     console.error(err);
+                    setError(`Analysis failed: ${err.message}. If you are running this locally, your browser might be blocking the connection. Use the GitHub Pages link for full functionality.`);
                 } finally {
                     setLoading(false);
                 }
@@ -160,7 +212,7 @@
                                 </div>
                                 <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Schema Journal</h1>
                             </div>
-                            <p className="text-slate-500 font-medium italic">Empowering the Healthy Adult through Awareness.</p>
+                            <p className="text-slate-500 font-medium italic">Developing the Healthy Adult perspective through awareness.</p>
                         </header>
 
                         <div className="flex bg-white p-1.5 rounded-2xl shadow-sm mb-8 border border-slate-200">
@@ -179,39 +231,39 @@
                         </div>
 
                         {activeTab === 'new' ? (
-                            <div className="space-y-6">
+                            <div className="space-y-6 animate-in">
                                 <section className="bg-white rounded-[2rem] shadow-sm border border-slate-200 p-8">
                                     <div className="flex items-center gap-2 mb-6 text-indigo-600">
                                         <Icon name="Sparkles" size={20} />
-                                        <h2 className="text-xl font-bold">1. Phase of Awareness</h2>
+                                        <h2 className="text-xl font-bold">Assess Thought Pattern</h2>
                                     </div>
                                     
                                     <div className="space-y-6">
                                         <div>
-                                            <label className="block text-[10px] font-black uppercase text-slate-400 mb-2 tracking-widest ml-1">Trigger Event</label>
+                                            <label className="block text-[10px] font-black uppercase text-slate-400 mb-2 tracking-widest ml-1">1. The Triggering Event</label>
                                             <textarea 
                                                 value={trigger}
                                                 onChange={(e) => setTrigger(e.target.value)}
-                                                placeholder="What happened?..."
-                                                className="w-full bg-slate-50 border-0 rounded-2xl p-5 focus:ring-4 focus:ring-indigo-100 transition-all h-24 resize-none outline-none"
+                                                placeholder="What happened? Be objective..."
+                                                className="w-full bg-slate-50 border-0 rounded-2xl p-5 focus:ring-4 focus:ring-indigo-100 transition-all h-24 resize-none outline-none placeholder:text-slate-300"
                                             />
                                         </div>
                                         <div>
-                                            <label className="block text-[10px] font-black uppercase text-slate-400 mb-2 tracking-widest ml-1">Automatic Thoughts</label>
+                                            <label className="block text-[10px] font-black uppercase text-slate-400 mb-2 tracking-widest ml-1">2. Automatic Thoughts</label>
                                             <textarea 
                                                 value={thoughts}
                                                 onChange={(e) => setThoughts(e.target.value)}
-                                                placeholder="What is your mind saying?..."
-                                                className="w-full bg-slate-50 border-0 rounded-2xl p-5 focus:ring-4 focus:ring-indigo-100 transition-all h-28 resize-none outline-none"
+                                                placeholder="What stories is your mind telling you?..."
+                                                className="w-full bg-slate-50 border-0 rounded-2xl p-5 focus:ring-4 focus:ring-indigo-100 transition-all h-28 resize-none outline-none placeholder:text-slate-300"
                                             />
                                         </div>
                                         <div>
-                                            <label className="block text-[10px] font-black uppercase text-slate-400 mb-2 tracking-widest ml-1">Emotions</label>
+                                            <label className="block text-[10px] font-black uppercase text-slate-400 mb-2 tracking-widest ml-1">3. Current Emotions</label>
                                             <input 
                                                 value={emotions}
                                                 onChange={(e) => setEmotions(e.target.value)}
-                                                placeholder="Anxiety, shame, unworthiness..."
-                                                className="w-full bg-slate-50 border-0 rounded-2xl p-5 focus:ring-4 focus:ring-indigo-100 transition-all outline-none"
+                                                placeholder="Fear, shame, anger..."
+                                                className="w-full bg-slate-50 border-0 rounded-2xl p-5 focus:ring-4 focus:ring-indigo-100 transition-all outline-none placeholder:text-slate-300"
                                             />
                                         </div>
                                     </div>
@@ -220,17 +272,17 @@
                                         <button 
                                             onClick={runAnalysis}
                                             disabled={loading}
-                                            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-5 rounded-3xl shadow-xl shadow-indigo-100 flex items-center justify-center gap-3 transition-all active:scale-95 disabled:opacity-50"
+                                            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-5 rounded-3xl shadow-xl shadow-indigo-100 flex items-center justify-center gap-3 transition-all active:scale-[0.98] disabled:opacity-50"
                                         >
                                             {loading ? (
                                                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                                             ) : <Icon name="ShieldCheck" size={20} />}
-                                            {loading ? "Analyzing..." : "Evaluate Pattern"}
+                                            {loading ? "Analyzing Pattern..." : "Evaluate Pattern"}
                                         </button>
                                     </div>
                                     {error && (
-                                        <div className="mt-4 p-4 bg-rose-50 text-rose-600 rounded-2xl flex items-center gap-2 border border-rose-100">
-                                            <Icon name="AlertCircle" size={18} />
+                                        <div className="mt-4 p-4 bg-rose-50 text-rose-600 rounded-2xl flex items-start gap-3 border border-rose-100">
+                                            <Icon name="AlertCircle" size={18} className="mt-0.5" />
                                             <span className="text-sm font-bold leading-tight">{error}</span>
                                         </div>
                                     )}
@@ -258,7 +310,7 @@
                                                 </div>
                                             </div>
                                             <div className="bg-white/5 border border-white/10 rounded-3xl p-6">
-                                                <h3 className="text-[10px] font-black uppercase text-amber-400 mb-3 tracking-widest">Mode & Style</h3>
+                                                <h3 className="text-[10px] font-black uppercase text-amber-400 mb-3 tracking-widest">Active Mode</h3>
                                                 <p className="text-lg font-bold leading-none mb-1 text-white">{analysis.mode}</p>
                                                 <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{analysis.coping}</p>
                                             </div>
@@ -271,8 +323,8 @@
                                             </div>
                                             
                                             <div className="bg-white text-slate-900 rounded-[2rem] p-8 shadow-inner">
-                                                <h3 className="text-indigo-600 text-[10px] font-black uppercase mb-3 tracking-widest flex items-center gap-2">
-                                                    Healthy Adult Perspective
+                                                <h3 className="text-indigo-600 text-[10px] font-black uppercase mb-3 flex items-center gap-2 tracking-widest font-bold">
+                                                    <Icon name="ShieldCheck" size={16} /> Healthy Adult Perspective
                                                 </h3>
                                                 <p className="font-semibold leading-relaxed text-lg">{analysis.healthyAdultPerspective}</p>
                                             </div>
@@ -322,7 +374,7 @@
                             <div className="flex items-center justify-center gap-4 mb-4">
                                 <div className="h-px w-12 bg-slate-200" />
                                 <p className="text-[9px] font-black text-slate-300 uppercase tracking-[0.4em] flex items-center gap-2 text-center">
-                                    Healing • Awareness • Growth
+                                    Awareness • Healing • Growth
                                 </p>
                                 <div className="h-px w-12 bg-slate-200" />
                             </div>
