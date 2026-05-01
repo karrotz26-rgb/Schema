@@ -80,9 +80,10 @@
             Alert: () => <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
         };
 
-        const STORAGE_KEY = "schema_journal_v12";
+        const STORAGE_KEY = "schema_journal_v13_stable";
         const API_KEY = "AIzaSyDmjb0u_rfr08MyuHc3f4ByEluR-R7_TKc";
-        // Standard model name for public Google AI API
+        
+        // standard model identifier for Gemini API
         const MODEL_NAME = "gemini-1.5-flash";
 
         const App = () => {
@@ -142,7 +143,7 @@
                 setLoading(true);
                 setError(null);
 
-                const systemPrompt = `You are a Schema Therapist specialist. Analyze the input based on Jeffrey Young's model.
+                const systemPrompt = `You are a world-renowned Schema Therapist expert. Analyze the input based on Jeffrey Young's model.
                 Identify Early Maladaptive Schemas, Mode, Coping Style, Healthy Adult Reframe, and Nurtured Child Message.
                 Return ONLY valid JSON:
                 {
@@ -162,6 +163,7 @@
 
                 for (let i = 0; i <= delays.length; i++) {
                     try {
+                        // Using the v1beta endpoint with standard model name
                         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${API_KEY}`, {
                             method: "POST",
                             headers: { "Content-Type": "application/json" },
@@ -177,11 +179,13 @@
 
                         if (!response.ok) {
                             const errBody = await response.json().catch(() => ({}));
-                            throw new Error(errBody.error?.message || "Connection error");
+                            throw new Error(errBody.error?.message || `HTTP ${response.status}`);
                         }
                         
                         const result = await response.json();
                         const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                        if (!text) throw new Error("Empty response from model");
+                        
                         const parsed = JSON.parse(text);
                         
                         setAnalysis(parsed);
@@ -196,7 +200,7 @@
                     }
                 }
 
-                setError(`Analysis failed: ${lastError}`);
+                setError(`Analysis failed: ${lastError}. Try refreshing or checking your API key.`);
                 setLoading(false);
             };
 
@@ -209,7 +213,7 @@
                             </div>
                             <div>
                                 <h1 className="text-2xl font-bold text-slate-800 tracking-tight leading-none mb-1">Schema Journal</h1>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Self-Evaluation Tool</p>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Thought Evaluator</p>
                             </div>
                         </div>
                     </header>
@@ -239,7 +243,7 @@
                                             value={trigger} 
                                             onChange={e => setTrigger(e.target.value)} 
                                             className="w-full bg-slate-50 border-0 rounded-3xl p-5 h-28 focus:ring-4 focus:ring-indigo-100 transition-all resize-none placeholder:text-slate-300 outline-none" 
-                                            placeholder="What happened?" 
+                                            placeholder="What happened just now?" 
                                         />
                                     </div>
                                     <div>
@@ -248,7 +252,7 @@
                                             value={thoughts} 
                                             onChange={e => setThoughts(e.target.value)} 
                                             className="w-full bg-slate-50 border-0 rounded-3xl p-5 h-32 focus:ring-4 focus:ring-indigo-100 transition-all resize-none placeholder:text-slate-300 outline-none" 
-                                            placeholder="What stories is your mind telling you?" 
+                                            placeholder="What is your mind saying to you?" 
                                         />
                                     </div>
                                     <button 
@@ -259,7 +263,7 @@
                                         {loading ? (
                                             <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
                                         ) : <Icons.Sparkles />}
-                                        {loading ? "Analyzing Pattern..." : "Evaluate Pattern"}
+                                        {loading ? "Analyzing..." : "Evaluate Pattern"}
                                     </button>
                                     {error && (
                                         <div className="mt-4 p-4 bg-rose-50 text-rose-600 rounded-2xl text-sm border border-rose-100 flex items-start gap-2">
@@ -273,12 +277,12 @@
                             {analysis && (
                                 <div className="bg-slate-900 text-white rounded-[2.5rem] p-10 shadow-2xl animate-fade-in space-y-10">
                                     <div className="flex items-center justify-between border-b border-white/10 pb-6">
-                                        <h2 className="text-xl font-bold">Evaluation Results</h2>
+                                        <h2 className="text-xl font-bold">Healing Analysis</h2>
                                     </div>
 
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <div className="bg-white/5 border border-white/10 rounded-3xl p-6">
-                                            <label className="text-[10px] font-black uppercase text-indigo-400 mb-3 block tracking-widest">Schemas</label>
+                                            <label className="text-[10px] font-black uppercase text-indigo-400 mb-3 block tracking-widest">EMS (Schemas)</label>
                                             <div className="flex flex-wrap gap-2">
                                                 {analysis.schemas.map(s => <span key={s} className="bg-indigo-500/20 text-indigo-200 px-3 py-1 rounded-xl text-xs font-bold border border-indigo-500/30">{s}</span>)}
                                             </div>
@@ -292,16 +296,20 @@
 
                                     <div className="space-y-10">
                                         <div className="border-l-4 border-indigo-500/30 pl-6">
-                                            <h3 className="text-indigo-300 text-[10px] font-black uppercase mb-3">Rational Challenge</h3>
+                                            <h3 className="text-indigo-300 text-[10px] font-black uppercase mb-3 tracking-widest">Rational Reframing</h3>
                                             <p className="italic text-xl leading-relaxed text-slate-200 font-light">"{analysis.rationalReframing}"</p>
                                         </div>
-                                        <div className="bg-white text-slate-900 rounded-[2rem] p-8 shadow-inner">
-                                            <h3 className="text-indigo-600 text-[10px] font-black uppercase mb-3 flex items-center gap-2 font-bold"><Icons.Shield /> Healthy Adult Perspective</h3>
+                                        <div className="bg-white text-slate-900 rounded-[2rem] p-8 shadow-inner border border-white/10">
+                                            <h3 className="text-indigo-600 text-[10px] font-black uppercase mb-3 flex items-center gap-2 font-bold tracking-widest">
+                                                <Icons.Shield /> Healthy Adult Perspective
+                                            </h3>
                                             <p className="font-semibold leading-relaxed text-lg">{analysis.healthyAdultPerspective}</p>
                                         </div>
                                         <div className="bg-indigo-500/10 p-8 rounded-[2rem] border border-indigo-500/20">
-                                            <h3 className="text-indigo-300 text-[10px] font-black uppercase mb-3 flex items-center gap-2"><Icons.Heart /> Reparenting Message</h3>
-                                            <p className="text-md italic text-indigo-100">"{analysis.nurturedChildPerspective}"</p>
+                                            <h3 className="text-indigo-300 text-[10px] font-black uppercase mb-3 flex items-center gap-2 tracking-widest">
+                                                <Icons.Heart /> Reparenting Message
+                                            </h3>
+                                            <p className="text-md italic text-indigo-100 leading-relaxed">"{analysis.nurturedChildPerspective}"</p>
                                         </div>
                                     </div>
                                 </div>
@@ -311,8 +319,8 @@
                         <div className="space-y-4 animate-fade-in">
                             {entries.length === 0 ? (
                                 <div className="bg-white rounded-[2.5rem] p-20 text-center border border-dashed border-slate-200 text-slate-400">
-                                    <Icons.History />
-                                    <p className="mt-4 font-bold uppercase text-[10px] tracking-widest">Archive is empty</p>
+                                    <div className="flex justify-center mb-4 opacity-30"><Icons.History /></div>
+                                    <p className="font-bold uppercase text-[10px] tracking-widest">Archive is empty</p>
                                 </div>
                             ) : (
                                 entries.map(entry => (
@@ -320,8 +328,9 @@
                                         <div>
                                             <p className="text-[10px] font-bold text-indigo-400 uppercase mb-1">{new Date(entry.date).toLocaleDateString()}</p>
                                             <h3 className="font-bold text-slate-800 line-clamp-1">{entry.trigger}</h3>
+                                            <p className="text-xs text-slate-400 mt-1 italic">"{entry.analysis.rationalReframing.substring(0, 80)}..."</p>
                                         </div>
-                                        <button onClick={() => deleteEntry(entry.id)} className="text-slate-300 hover:text-rose-500 transition-colors"><Icons.Trash /></button>
+                                        <button onClick={() => deleteEntry(entry.id)} className="text-slate-300 hover:text-rose-500 transition-colors p-2"><Icons.Trash /></button>
                                     </div>
                                 ))
                             )}
